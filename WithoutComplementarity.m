@@ -24,6 +24,13 @@ u = MX.sym('u',ni);  % u(1) = f (GRF), u(2) = M (Momentum of the flywheel)
 fn = u(1);
 ft = u(2);
 M = u(3);
+% add force/torque limits
+u1max = 20;
+u1min = 0;
+u2max = 20;
+u2min = -20;
+u3max = 40;
+u3min = -40;
 
 grav = -9.81;
 m = 1; % mass of the pendulum
@@ -44,8 +51,7 @@ Lag = E - V;
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft; zd; eq(3) + fn];
 % Objective term
-L = theta^2 + thetad^2 + (x+0.5)^2 + xd^2 + (z-1)^2 + zd^2;
-
+L = theta^2 + thetad^2 +(x+1)^2 + xd^2 + (z-1)^2 + zd^2;
 
 % Continuous time dynamics
 f = Function('f', {state, u}, {xdot, L});
@@ -59,7 +65,8 @@ X0 = MX.sym('X0', nv);
 U = MX.sym('U',ni);
 X = X0;
 Q = 0;
-tau = 0.1;
+tau = 50;
+Jfinal = 0;
 % Runge Kutta 4 integrator
 for j=1:IntStep
     [k1, k1_q] = easycall(f, X, U);
@@ -84,8 +91,8 @@ ubg = [];
 % "Lift" initial conditions
 X0 = MX.sym('X0', nv);
 w = {w{:}, X0};
-lbw = [lbw; 0.1; 0; 1; 0; 2; 0];
-ubw = [ubw; 0.1; 0; 1; 0; 2; 0];
+lbw = [lbw; 0; 0; 0; 0; 1; 0];
+ubw = [ubw; 0; 0; 0; 0; 1; 0];
 w0 = [w0; 0; 0; 0; 0; 0; 0];
 
 % Formulate the NLP
@@ -94,8 +101,8 @@ for k=0:N-1
     % New NLP variable for the control
     Uk = MX.sym(['U_' num2str(k)], ni);
     w = {w{:}, Uk};
-    lbw = [lbw; 0; -inf; -inf];   % normal ground reaction force u(1) can only be positive
-    ubw = [ubw; inf; inf; inf];
+    lbw = [lbw; u1min; u2min; u3min];   % normal ground reaction force u(1) can only be positive
+    ubw = [ubw; u1max; u2max; u3max];
     w0 = [w0; 0; 0; 0];
 
     % Integrate till the end of the interval
@@ -109,6 +116,7 @@ for k=0:N-1
         lbw = [lbw; -inf; -inf;  -inf;  -inf;  -inf;  -inf];  % z coordinate can only be positive
         ubw = [ubw; inf; inf;  inf;  inf; inf;  inf];
         w0 = [w0; 0; 0; 0; 0; 0; 0];
+        J = J + Jfinal;
     else
         lbw = [lbw; -inf; -inf;  -inf;  -inf;  -inf;  -inf];  % z coordinate can only be positive
         ubw = [ubw;  inf;  inf;  inf;  inf;  inf;  inf];
@@ -122,13 +130,13 @@ for k=0:N-1
     g = {g{:}, Xk(5)-len*cos(Xk(1))};
     lbg = [lbg; 0];
     ubg = [ubg; inf];
-%     % add complementarity constraint
-%     g = {g{:}, Uk(2)*Xk(5)};
-%     lbg = [lbg; 0];
-%     ubg = [ubg; tau];
-%     g = {g{:}, Uk(1)*Xk(5)};
-%     lbg = [lbg; 0];
-%     ubg = [ubg; tau];
+    % add complementarity constraint
+    g = {g{:}, Uk(2)*(Xk(5)-len*cos(Xk(1)))};
+    lbg = [lbg; 0];
+    ubg = [ubg; tau];
+    g = {g{:}, Uk(1)*(Xk(5))-len*cos(Xk(1))};
+    lbg = [lbg; 0];
+    ubg = [ubg; tau];
 end
 
 % Create an NLP solver
@@ -189,7 +197,7 @@ for k=1:n
     floorx = [-1 1];
     floory = [0 0];
     plot(xx,zz,'k', floatx, floatz, 'r', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--')
-%     axis([-1 1 -0.5 1.5])
+%     axis([-2 2 -0.5 5.5])
     % Store the frame
     drawnow
     pause(0.1)
