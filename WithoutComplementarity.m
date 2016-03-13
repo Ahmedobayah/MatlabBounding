@@ -27,8 +27,8 @@ M = u(3);
 % add force/torque limits
 u1max = 150;
 u1min = 0;
-u2max = 80;
-u2min = -80;
+u2max = 10;
+u2min = -10;
 u3max = 80;
 u3min = -80;
 
@@ -51,7 +51,7 @@ Lag = E - V;
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
 % Objective term
-L = theta^2 + x^2 + 100*(z-3)^2;
+L = theta^2 + 100*(z-3)^2;
 
 % Continuous time dynamics
 f = Function('f', {state, u}, {xdot, L});
@@ -65,7 +65,7 @@ X0 = MX.sym('X0', nv);
 U = MX.sym('U',ni);
 X = X0;
 Q = 0;
-tau = 10;
+tau = 0.5;
 Jfinal = 0;
 % Runge Kutta 4 integrator
 for j=1:IntStep
@@ -201,4 +201,13 @@ for k=1:n
     % Store the frame
     drawnow
     pause(0.1)
+end
+
+
+figure(3)
+for k =1:n 
+plot(x1_opt,x2_opt,'b',x1_opt(k),x2_opt(k),'r*')
+xlabel('theta'),ylabel('theta dot')
+drawnow
+pause(0.05)
 end
