@@ -3,7 +3,7 @@ close all
 clc
 
 import casadi.*
-tt = 0.05; % integration time (sampling time)
+tt = 0.01; % integration time (sampling time)
 ni = 3;
 % Declare model variables
 theta = MX.sym('theta'); % theta1
@@ -25,12 +25,12 @@ fn = u(1);
 ft = u(2);
 M = u(3);
 % add force/torque limits
-u1max = 20;
+u1max = 150;
 u1min = 0;
-u2max = 20;
-u2min = -20;
-u3max = 40;
-u3min = -40;
+u2max = 80;
+u2min = -80;
+u3max = 80;
+u3min = -80;
 
 grav = -9.81;
 m = 1; % mass of the pendulum
@@ -49,15 +49,15 @@ Lag = E - V;
 % Equation of motion
 % eq = jtimes(gradient(Lag,dq),q,dq) - gradient(Lag,q);
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
-xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft; zd; eq(3) + fn];
+xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
 % Objective term
-L = theta^2 + thetad^2 +(x+1)^2 + xd^2 + (z-1)^2 + zd^2;
+L = theta^2 + x^2 + 100*(z-3)^2;
 
 % Continuous time dynamics
 f = Function('f', {state, u}, {xdot, L});
 
 % Control discretization
-N = 100; % number of control intervals
+N = 150; % number of control intervals
 IntStep = 4; % RK4 steps per interval
 T = tt * N; % Time horizon
 DT = T/N/IntStep;
@@ -65,7 +65,7 @@ X0 = MX.sym('X0', nv);
 U = MX.sym('U',ni);
 X = X0;
 Q = 0;
-tau = 50;
+tau = 10;
 Jfinal = 0;
 % Runge Kutta 4 integrator
 for j=1:IntStep
@@ -134,7 +134,7 @@ for k=0:N-1
     g = {g{:}, Uk(2)*(Xk(5)-len*cos(Xk(1)))};
     lbg = [lbg; 0];
     ubg = [ubg; tau];
-    g = {g{:}, Uk(1)*(Xk(5))-len*cos(Xk(1))};
+    g = {g{:}, Uk(1)*(Xk(5)-len*cos(Xk(1)))};
     lbg = [lbg; 0];
     ubg = [ubg; tau];
 end
@@ -168,12 +168,12 @@ plot(tgrid, x1_opt, 'k--')
 % plot(tgrid, x2_opt, 'r--')
 % plot(tgrid, x3_opt, 'k^')
 % plot(tgrid, x4_opt, 'r*')
-plot(tgrid, x3_opt, 'g')
+plot(tgrid, x5_opt - len*cos(x1_opt), 'g')
 plot(tgrid, x5_opt, 'b')
 
 % stairs(tgrid, [u_opt; nan], '-.')
 xlabel('t')
-legend('theta','x','z')
+legend('theta','z base','z')
 subplot(2,1,2);
 % handle = stairs(tgrid,[[u1_opt; nan],[u2_opt; nan],[u3_opt; nan]]);hold on;
 stairs(tgrid, [u1_opt;nan],'r'), hold on;
