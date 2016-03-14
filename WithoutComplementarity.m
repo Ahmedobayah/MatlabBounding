@@ -135,6 +135,9 @@ for k=0:N-1
     lbg = [lbg; 0];
     ubg = [ubg; inf];
     % add complementarity constraint
+    g = {g{:}, Uk(3)*(Xk(5)-len*cos(Xk(1)))};
+    lbg = [lbg; 0];
+    ubg = [ubg; tau];
     g = {g{:}, Uk(2)*(Xk(5)-len*cos(Xk(1)))};
     lbg = [lbg; 0];
     ubg = [ubg; tau];
