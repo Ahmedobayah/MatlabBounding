@@ -1,3 +1,0 @@
-% explicit cubic Bezier curve:
-
-Bez = (1-t^3)*

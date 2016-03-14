@@ -51,7 +51,7 @@ Lag = E - V;
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
 % Objective term
-L = theta^2 + 100*(z-3)^2;
+L = theta^2;
 
 % Continuous time dynamics
 f = Function('f', {state, u}, {xdot, L});
@@ -117,6 +117,10 @@ for k=0:N-1
         ubw = [ubw; inf; inf;  inf;  inf; inf;  inf];
         w0 = [w0; 0; 0; 0; 0; 0; 0];
         J = J + Jfinal;
+    elseif k == 100
+        lbw = [lbw; -inf; 5;  -inf;  5;  -inf;  5];  % z coordinate can only be positive
+        ubw = [ubw;  inf; 5;  inf;  5; inf;  5];
+        w0 = [w0; 0; 0; 0; 0; 0; 0];
     else
         lbw = [lbw; -inf; -inf;  -inf;  -inf;  -inf;  -inf];  % z coordinate can only be positive
         ubw = [ubw;  inf;  inf;  inf;  inf;  inf;  inf];
@@ -138,6 +142,7 @@ for k=0:N-1
     lbg = [lbg; 0];
     ubg = [ubg; tau];
 end
+
 
 % Create an NLP solver
 prob = struct('f', J, 'x', vertcat(w{:}), 'g', vertcat(g{:}));
@@ -163,18 +168,21 @@ u3_opt = w_opt(9:9:end);
 
 tgrid = linspace(0, T, N+1);
 clf;
-subplot(2,1,1),hold on
+pend = [x5_opt - len*cos(x1_opt),x5_opt];
+subplot(3,1,1),hold on
 plot(tgrid, x1_opt, 'k--')
-% plot(tgrid, x2_opt, 'r--')
-% plot(tgrid, x3_opt, 'k^')
-% plot(tgrid, x4_opt, 'r*')
 plot(tgrid, x5_opt - len*cos(x1_opt), 'g')
 plot(tgrid, x5_opt, 'b')
-
-% stairs(tgrid, [u_opt; nan], '-.')
 xlabel('t')
 legend('theta','z base','z')
-subplot(2,1,2);
+
+subplot(3,1,2),
+plot(tgrid, x4_opt,'k'), hold on;
+plot(tgrid, x6_opt,'r'), plot(tgrid, x2_opt,'g');
+% stairs(tgrid, [u_opt; nan], '-.')
+xlabel('t')
+legend('x dot','z dot', 'theta dot')
+subplot(3,1,3);
 % handle = stairs(tgrid,[[u1_opt; nan],[u2_opt; nan],[u3_opt; nan]]);hold on;
 stairs(tgrid, [u1_opt;nan],'r'), hold on;
 stairs(tgrid, [u2_opt;nan],'k')
@@ -185,29 +193,34 @@ hold off;
 
 figure(2)
 n = size(x1_opt,1);
+Concatzz = []; Concatxx = [];
 for k=1:n
     P0z = x5_opt(k) - len*cos(x1_opt(k));    
     P0x = x3_opt(k) - len*sin(x1_opt(k)); 
     % end effector coordinates
     zz = [x5_opt(k), P0z];
+    Concatzz = [Concatzz; zz];
     xx = [x3_opt(k), P0x];
+    Concatxx = [Concatxx; xx];
     % base coordinates
     floatz = [0, 0, P0z];
     floatx = [0, P0x, P0x];
     floorx = [-1 1];
     floory = [0 0];
-    plot(xx,zz,'k', floatx, floatz, 'r', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--')
+    plot(xx,zz,'k', floatx, floatz, 'r', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', Concatxx', Concatzz','k')
 %     axis([-2 2 -0.5 5.5])
     % Store the frame
+    xlabel('x'); ylabel('z');
+    title('L = theta^2 + x^2 + 100*(z-3)^2  (\tau = 0.5)');
     drawnow
     pause(0.1)
 end
 
 
-figure(3)
-for k =1:n 
-plot(x1_opt,x2_opt,'b',x1_opt(k),x2_opt(k),'r*')
-xlabel('theta'),ylabel('theta dot')
-drawnow
-pause(0.05)
-end
+% figure(3)
+% for k =1:n 
+% plot(x1_opt,x2_opt,'b',x1_opt(k),x2_opt(k),'r*')
+% xlabel('theta'),ylabel('theta dot')
+% drawnow
+% pause(0.05)
+% end
