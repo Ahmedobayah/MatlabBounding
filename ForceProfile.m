@@ -14,7 +14,7 @@ Tsw = 0.5; % swing time
 T = Tst + Tsw; % period corresponding to 1 step
 tt = 0.005; % integration time (sampling time)
 
-ni = 6;
+ni = 5;
 % Declare model variables
 theta = MX.sym('theta'); % theta1
 thetad = MX.sym('thetad'); % theta1_dot
@@ -114,9 +114,9 @@ for k=0:N-1
     % New NLP variable for the control
     Uk = MX.sym(['U_' num2str(k)], ni);
     w = {w{:}, Uk};
-    lbw = [lbw; u1min; u2min; u3min; -1000; -1000; -1000];   % normal ground reaction force u(1) can only be positive
-    ubw = [ubw; u1max; u2max; u3max; 1000; 1000; 1000];
-    w0 = [w0; 0; 0; 0; 0; 0; 0];
+    lbw = [lbw; u1min; u2min; u3min; -1000; -1000];   % normal ground reaction force u(1) can only be positive
+    ubw = [ubw; u1max; u2max; u3max; 1000; 1000];
+    w0 = [w0; 0; 0; 0; 0; 0];
 
     % Integrate till the end of the interval
     [Xk_end, Jk] = easycall(F, Xk, Uk);
@@ -196,17 +196,17 @@ w_opt = full(sol.x);
 
 % Plot the solution
 close all;
-x1_opt = w_opt(1:12:end);
-x2_opt = w_opt(2:12:end);
-x3_opt = w_opt(3:12:end);
-x4_opt = w_opt(4:12:end);
-x5_opt = w_opt(5:12:end);
-x6_opt = w_opt(6:12:end);
-u1_opt = w_opt(7:12:end);
-u2_opt = w_opt(8:12:end);
-u3_opt = w_opt(9:12:end);
-u4_opt = w_opt(10:12:end);
-u5_opt = w_opt(11:12:end);
+x1_opt = w_opt(1:11:end);
+x2_opt = w_opt(2:11:end);
+x3_opt = w_opt(3:11:end);
+x4_opt = w_opt(4:11:end);
+x5_opt = w_opt(5:11:end);
+x6_opt = w_opt(6:11:end);
+u1_opt = w_opt(7:11:end);
+u2_opt = w_opt(8:11:end);
+u3_opt = w_opt(9:11:end);
+u4_opt = w_opt(10:11:end);
+u5_opt = w_opt(11:11:end);
 
 
 tgrid = 0:tt:T;
