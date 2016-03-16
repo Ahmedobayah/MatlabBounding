@@ -51,7 +51,7 @@ Lag = E - V;
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
 % Objective term
-L = theta^2;
+L = theta^2 + u'*u;
 
 % Continuous time dynamics
 f = Function('f', {state, u}, {xdot, L});
@@ -113,16 +113,16 @@ for k=0:N-1
     Xk = MX.sym(['X_' num2str(k+1)], nv);
     w = {w{:}, Xk};
     if k == N-1
-        lbw = [lbw; -inf; -inf;  -inf;  -inf;  -inf;  -inf];  % z coordinate can only be positive
-        ubw = [ubw; inf; inf;  inf;  inf; inf;  inf];
+        lbw = [lbw; 0; -inf;  -inf;  -inf;  0;  -inf];  % z coordinate can only be positive
+        ubw = [ubw; 0; inf;  inf;  inf; inf;  inf];
         w0 = [w0; 0; 0; 0; 0; 0; 0];
         J = J + Jfinal;
-    elseif k == 100
-        lbw = [lbw; -inf; 5;  -inf;  5;  -inf;  5];  % z coordinate can only be positive
+    elseif k == 50
+        lbw = [lbw; -inf; 5;  -inf;  5;  0;  5];  % z coordinate can only be positive
         ubw = [ubw;  inf; 5;  inf;  5; inf;  5];
         w0 = [w0; 0; 0; 0; 0; 0; 0];
     else
-        lbw = [lbw; -inf; -inf;  -inf;  -inf;  -inf;  -inf];  % z coordinate can only be positive
+        lbw = [lbw; -inf; -inf;  -inf;  -inf;  0;  -inf];  % z coordinate can only be positive
         ubw = [ubw;  inf;  inf;  inf;  inf;  inf;  inf];
         w0 = [w0; 0; 0; 0; 0; 0; 0];
     end
@@ -144,6 +144,10 @@ for k=0:N-1
     g = {g{:}, Uk(1)*(Xk(5)-len*cos(Xk(1)))};
     lbg = [lbg; 0];
     ubg = [ubg; tau];
+    % parametrize fn
+%     g = {g{:}, Uk(1) - 3*a1*(1-t)^2*t - 3*a2*(1-t)*t^2};
+%     lbg = [lbg; 0];
+%     ubg = [ubg; 0];
 end
 
 
@@ -177,7 +181,7 @@ plot(tgrid, x1_opt, 'k--')
 plot(tgrid, x5_opt - len*cos(x1_opt), 'g')
 plot(tgrid, x5_opt, 'b')
 xlabel('t')
-legend('theta','z base','z')
+legend('theta','z foot','z')
 
 subplot(3,1,2),
 plot(tgrid, x4_opt,'k'), hold on;
@@ -214,7 +218,7 @@ for k=1:n
 %     axis([-2 2 -0.5 5.5])
     % Store the frame
     xlabel('x'); ylabel('z');
-    title('L = theta^2 + x^2 + 100*(z-3)^2  (\tau = 0.5)');
+    title('L = \theta^2 + u^2  (\tau = 0.5)');
     drawnow
     pause(0.1)
 end

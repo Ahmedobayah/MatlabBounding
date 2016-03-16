@@ -1,15 +1,9 @@
-% Generalized Capture Point
-% Given a CP find the suitable CoM parabolic trajectory 
-
-CP = [3,0];
-
-
 clear all
 close all
 clc
 
 import casadi.*
-Tst = 0.15; % stance time
+Tst = 0.1; % stance time
 Tsw = 0.5; % swing time
 T = Tst + Tsw; % period corresponding to 1 step
 tt = 0.005; % integration time (sampling time)
@@ -31,8 +25,7 @@ dq = [thetad; xd; zd];
 ddq = MX.sym('ddq',size(q,1)); % theta1_dot_dot
 
 u = MX.sym('u',ni);  % u(1) = f (GRF), u(2) = M (Momentum of the flywheel)
-% fn = (3*u(4)*(1-t)^2*t - 3*u(5)*(1-t)*t^2);
-% ft = (3*u(6)*(1-t)^2*t - 3*u(7)*(1-t)*t^2);
+
 fn = u(1);
 ft = u(2);
 M = u(3);
@@ -126,7 +119,7 @@ for k=0:N-1
     Xk = MX.sym(['X_' num2str(k+1)], nv);
     w = {w{:}, Xk};
     if k == N-1
-        lbw = [lbw; -inf; -inf;  -inf;  -inf; -inf;  -inf];  % z coordinate can only be positive
+        lbw = [lbw; -inf; -inf;  -inf;  -inf; 0;  -inf];  % z coordinate can only be positive
         ubw = [ubw; inf; inf;  inf;  inf; inf; inf];
         w0 = [w0; 0; 0; 0; 0; 0; 0];
         J = J + Jfinal;
@@ -256,7 +249,7 @@ for k=1:n
 %     axis([-2 2 -0.5 5.5])
     % Store the frame
     xlabel('x'); ylabel('z');
-    title('L = \theta^2 + x^2 + (z-2)^2  (\tau = 0.5)');
+    title('L = \theta^2 + x^2 + (z-2)^2 ');
     drawnow
     pause(0.1)
 end
