@@ -215,7 +215,7 @@ for k=1:n
     floorx = [-1 1];
     floory = [0 0];
     plot(xx,zz,'k', floatx, floatz, 'r', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', Concatxx', Concatzz','k')
-%     axis([-2 2 -0.5 5.5])
+    axis([-2 6 -0.5 7.5])
     % Store the frame
     xlabel('x'); ylabel('z');
     title('L = \theta^2 + u^2  (\tau = 0.5)');
