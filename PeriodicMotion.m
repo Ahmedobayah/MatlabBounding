@@ -7,10 +7,12 @@ Tst = 0.4; % stance time
 Tsw = 1; % swing time
 T = Tst + Tsw; % period corresponding to 1 step
 tt = 0.005; % integration time (sampling time)
-StepLenght = 20;
+StepLenght = 2;
 
 Tlanding = (Tsw/2); 
 Tliftoff = (Tsw/2) + Tst;
+% Spring stiffness
+K = 10;
 
 ni = 5;
 % Declare model variables
@@ -60,7 +62,7 @@ Lag = E - V;
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
 % Objective term
-L = theta^2;
+L = theta^2 + u'*u;
 
 % Continuous time dynamics
 f = Function('f', {state, u}, {xdot, L});
@@ -75,6 +77,7 @@ X = X0;
 Q = 0;
 tau = 0;
 tau2 = 100;
+tau3 = 0;
 Jfinal = 0;
 
 % Runge Kutta 4 integrator
@@ -145,46 +148,29 @@ for k=0:N-1
     lbg = [lbg; 0];
     ubg = [ubg; inf];
     % add complementarity constraint
-%     g = {g{:}, Uk(3)*(Xk(5)-len*cos(Xk(1)))};
-%     lbg = [lbg; 0];
-%     ubg = [ubg; tau];
-%     g = {g{:}, Uk(2)*(Xk(5)-len*cos(Xk(1)))};
-%     lbg = [lbg; 0];
-%     ubg = [ubg; tau];
-%     g = {g{:}, Uk(1)*(Xk(5)-len*cos(Xk(1)))};
-%     lbg = [lbg; 0];
-%     ubg = [ubg; tau];
-
-    % parametrize fn
-    time = (k*tt - Tlanding)/(Tliftoff-Tlanding);
-    g = {g{:}, Uk(1) - ((1-time)^2*time - Uk(4)*(1-time)*time^2)};
-    lbg = [lbg; -tau];
-    ubg = [ubg; tau];
-    g = {g{:}, Uk(2) - ((1-time)^2*time - Uk(5)*(1-time)*time^2)};
-    lbg = [lbg; -tau];
-    ubg = [ubg; tau];
-
-% x,z coordinates of the foot at touch down
-%     Xtouchd = Xk(3) + len*sin(Xk(1)); 
-%     Ztouchd = Xk(5) - len*cos(Xk(1));
-% current lenght of the pendulum at each iteration    
-%     lx = (Xk(3) - Xtouchd);
-%     lz = (Xk(5) - Ztouchd);
-%     g = {g{:}, Uk(1) - K*(len*cos(Xk(1)) - lz)};
-%     lbg = [lbg; -tau];
-%     ubg = [ubg; tau];
-%     g = {g{:}, Uk(2) - ((1-time)^2*time - Uk(5)*(1-time)*time^2)};
-%     lbg = [lbg; -tau];
-%     ubg = [ubg; tau];
-
-%     g = {g{:}, Uk(3) - ((1-time)^2*time - Uk(6)*(1-time)*time^2)};
-    %     lbg = [lbg; -tau];
+    %     g = {g{:}, Uk(3)*(Xk(5)-len*cos(Xk(1)))};
+    %     lbg = [lbg; 0];
     %     ubg = [ubg; tau];
-    if (k > Tlanding/tt)&&(k <= Tliftoff/tt)
-        g = {g{:}, Uk(4) - tmpUk4, Uk(5) - tmpUk5};
-        lbg = [lbg; -tau2; -tau2];
-        ubg = [ubg; tau2; tau2];
-    elseif k ==0
+    %     g = {g{:}, Uk(2)*(Xk(5)-len*cos(Xk(1)))};
+    %     lbg = [lbg; 0];
+    %     ubg = [ubg; tau];
+    %     g = {g{:}, Uk(1)*(Xk(5)-len*cos(Xk(1)))};
+    %     lbg = [lbg; 0];
+    %     ubg = [ubg; tau];
+    
+    % parametrize fn
+        time = (k*tt - Tlanding)/(Tliftoff-Tlanding);
+        g = {g{:}, Uk(1) - ((1-time)^2*time - Uk(4)*(1-time)*time^2)};
+        lbg = [lbg; -tau];
+        ubg = [ubg; tau];
+        g = {g{:}, Uk(2) - ((1-time)^2*time - Uk(5)*(1-time)*time^2)};
+        lbg = [lbg; -tau];
+        ubg = [ubg; tau];
+    
+%         g = {g{:}, Uk(3) - ((1-time)^2*time - Uk(6)*(1-time)*time^2)};
+%         lbg = [lbg; -tau];
+%             ubg = [ubg; tau];
+    if k ==0
         Xinit = Xk;
         g = {g{:}, Uk(1), Uk(2)};
         lbg = [lbg; 0; 0];
@@ -194,17 +180,43 @@ for k=0:N-1
         ubg = [ubg; 0; 0];
         tmpUk4 = Uk(4);
         tmpUk5 = Uk(5);
+    elseif (k >= Tlanding/tt)&&(k <= Tliftoff/tt)
+        if (k == Tlanding/tt)
+        %     x,z coordinates of the foot at touch down
+        Xtouchd = Xk(3) - len*sin(Xk(1));
+        Ztouchd = Xk(5) - len*cos(Xk(1));
+        end
+        % current lenght of the pendulum at each iteration
+        lx = (Xk(3) - Xtouchd);
+        lz = (Xk(5) - Ztouchd);
+        l = sqrt(lx^2+lz^2);
+%         g = {g{:}, Uk(1) - K*(len*cos(Xk(1)) - lz)};
+%         lbg = [lbg; -tau];
+%         ubg = [ubg; tau];
+%         g = {g{:}, Uk(2) - K*(len*sin(Xk(1)) - lx)};
+%         lbg = [lbg; -tau];
+%         ubg = [ubg; tau];
+        g = {g{:}, Xk(3) - l*sin(Xk(1)) - Xtouchd};
+        lbg = [lbg; -tau3];
+        ubg = [ubg; tau3];
+        g = {g{:}, Xk(5) - l*cos(Xk(1)) - Ztouchd};
+        lbg = [lbg; -tau3];
+        ubg = [ubg; tau3];
+        % impose the Bezier coefficient to be constant during stance
+        g = {g{:}, Uk(4) - tmpUk4, Uk(5) - tmpUk5};
+        lbg = [lbg; -tau2; -tau2];
+        ubg = [ubg; tau2; tau2];
     elseif k == N-1
         g = {g{:}, Xk - Xinit};
         lbg = [lbg; 0; 0; StepLenght; 0; 0; 0];
         ubg = [ubg; 0; 0; StepLenght; 0; 0; 0];
-        g = {g{:}, Uk(1), Uk(2)};
-        lbg = [lbg; 0; 0];
-        ubg = [ubg; 0; 0];
+        g = {g{:}, Uk(1), Uk(2), Uk(3)};
+        lbg = [lbg; 0; 0; 0];
+        ubg = [ubg; 0; 0; 0];
     else
-        g = {g{:}, Uk(1), Uk(2)};
-        lbg = [lbg; 0; 0];
-        ubg = [ubg; 0; 0];
+        g = {g{:}, Uk(1), Uk(2),Uk(3)};
+        lbg = [lbg; 0; 0; 0];
+        ubg = [ubg; 0; 0; 0];
     end
 end
 
@@ -215,7 +227,7 @@ solver = nlpsol('solver', 'ipopt', prob);
 
 % Solve the NLP
 arg = struct('x0', w0, 'lbx', lbw, 'ubx', ubw,...
-            'lbg', lbg, 'ubg', ubg);
+    'lbg', lbg, 'ubg', ubg);
 sol = solver(arg);
 w_opt = full(sol.x);
 
@@ -262,9 +274,9 @@ legend('fn [N]', 'ft [N]');
 xlabel('time [s]');
 hold off;
 
-figure(2), subplot(3,1,1), stairs(u3_opt), legend('M [Nm]');
-subplot(3,1,2), stairs(x2_opt), legend('theta dot [rad/s]');
-subplot(3,1,3), stairs(u4_opt),hold on, stairs(u5_opt,'r'), legend('Bezier parameters [Nm]');
+figure(2), subplot(3,1,1), stairs(tgrid, [u3_opt;nan]), legend('M [Nm]');
+subplot(3,1,2), stairs(tgrid, x2_opt), legend('theta dot [rad/s]');
+subplot(3,1,3), stairs(tgrid, [u4_opt;nan]),hold on, stairs(tgrid, [u5_opt;nan],'r'), legend('Bezier parameters [Nm]');
 
 figure(3)
 n = size(x1_opt,1);
@@ -281,11 +293,11 @@ for k=1:n
     floatx = [0, P0x, P0x];
     floorx = [-1 1];
     floory = [0 0];
-    if (k>=Tlanding/tt)&&(k <= Tliftoff/tt)
+    if (k>=Tlanding/tt)&&(k <= Tliftoff/tt) % stance phase
         ConcatzzStance = [ConcatzzStance; zz];
         ConcatxxStance = [ConcatxxStance; xx];
         plot(xx,zz,'r', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', ConcatxxStance', ConcatzzStance','r', ConcatxxFly', ConcatzzFly','k')
-    else 
+    else % flight phase
         ConcatzzFly = [ConcatzzFly; zz];
         ConcatxxFly = [ConcatxxFly; xx];
         plot(xx,zz,'k', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', ConcatxxFly', ConcatzzFly','k',ConcatxxStance', ConcatzzStance','r')
