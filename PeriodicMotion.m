@@ -3,10 +3,11 @@ close all
 clc
 
 import casadi.*
-Tst = 0.1; % stance time
-Tsw = 0.5; % swing time
+Tst = 0.4; % stance time
+Tsw = 2; % swing time
 T = Tst + Tsw; % period corresponding to 1 step
 tt = 0.005; % integration time (sampling time)
+StepLenght = 0;
 
 Tlanding = (Tsw/2); 
 Tliftoff = (Tsw/2) + Tst;
@@ -72,7 +73,8 @@ X0 = MX.sym('X0', nv);
 U = MX.sym('U',ni);
 X = X0;
 Q = 0;
-tau = 100;
+tau = 0;
+tau2 = 10;
 Jfinal = 0;
 
 % Runge Kutta 4 integrator
@@ -164,21 +166,29 @@ for k=0:N-1
     %     g = {g{:}, Uk(3) - ((1-time)^2*time - Uk(6)*(1-time)*time^2)};
     %     lbg = [lbg; -tau];
     %     ubg = [ubg; tau];
-    if (k >= Tlanding/tt)&&(k <= Tliftoff/tt)
+    if (k > Tlanding/tt)&&(k <= Tliftoff/tt)
         g = {g{:}, Uk(4) - tmpUk4, Uk(5) - tmpUk5};
-        lbg = [lbg; -tau; -tau];
-        ubg = [ubg; tau; tau];
+        lbg = [lbg; -tau2; -tau2];
+        ubg = [ubg; tau2; tau2];
     elseif k ==0
-        Xinit = Xk_end;
+%         g = {g{:}, Xk - X0};
+%         lbg = [lbg; 0; 0; 0; 0; 0; 0];
+%         ubg = [ubg; 0; 0; 0; 0; 0; 0];
+        g = {g{:}, Uk(1), Uk(2), Uk(3)};
+        lbg = [lbg; 0; 0; 0];
+        ubg = [ubg; 0; 0; 0];
         g = {g{:}, Uk(1), Uk(2), Uk(3)};
         lbg = [lbg; 0; 0; 0];
         ubg = [ubg; 0; 0; 0];
         tmpUk4 = Uk(4);
         tmpUk5 = Uk(5);
     elseif k == N-1
-        g = {g{:}, Xk - Xinit};
-        lbg = [lbg; 0; 0; 0; 0; 0; 0];
-        ubg = [ubg; 0; 0; 0; 0; 0; 0];
+        g = {g{:}, Xk - X0};
+        lbg = [lbg; 0; 0; StepLenght; 0; 0; 0];
+        ubg = [ubg; 0; 0; StepLenght; 0; 0; 0];
+        g = {g{:}, Uk(1), Uk(2), Uk(3)};
+        lbg = [lbg; 0; 0; 0];
+        ubg = [ubg; 0; 0; 0];
     else
         g = {g{:}, Uk(1), Uk(2), Uk(3)};
         lbg = [lbg; 0; 0; 0];
@@ -240,7 +250,11 @@ legend('fn [N]', 'ft [N]');
 xlabel('time [s]');
 hold off;
 
-figure(2)
+figure(2), subplot(3,1,1), stairs(u3_opt), legend('M [Nm]');
+subplot(3,1,2), stairs(x2_opt), legend('theta dot [rad/s]');;
+subplot(3,1,3), stairs(u4_opt),hold on, stairs(u5_opt,'r'), legend('Bezier parameters [Nm]');;
+
+figure(3)
 n = size(x1_opt,1);
 ConcatzzStance = []; ConcatxxStance = [];
 ConcatzzFly = []; ConcatxxFly = [];
