@@ -4,10 +4,10 @@ clc
 
 import casadi.*
 Tst = 0.4; % stance time
-Tsw = 2; % swing time
+Tsw = 1; % swing time
 T = Tst + Tsw; % period corresponding to 1 step
 tt = 0.005; % integration time (sampling time)
-StepLenght = 0;
+StepLenght = 20;
 
 Tlanding = (Tsw/2); 
 Tliftoff = (Tsw/2) + Tst;
@@ -74,7 +74,7 @@ U = MX.sym('U',ni);
 X = X0;
 Q = 0;
 tau = 0;
-tau2 = 10;
+tau2 = 100;
 Jfinal = 0;
 
 % Runge Kutta 4 integrator
@@ -163,7 +163,21 @@ for k=0:N-1
     g = {g{:}, Uk(2) - ((1-time)^2*time - Uk(5)*(1-time)*time^2)};
     lbg = [lbg; -tau];
     ubg = [ubg; tau];
-    %     g = {g{:}, Uk(3) - ((1-time)^2*time - Uk(6)*(1-time)*time^2)};
+
+% x,z coordinates of the foot at touch down
+%     Xtouchd = Xk(3) + len*sin(Xk(1)); 
+%     Ztouchd = Xk(5) - len*cos(Xk(1));
+% current lenght of the pendulum at each iteration    
+%     lx = (Xk(3) - Xtouchd);
+%     lz = (Xk(5) - Ztouchd);
+%     g = {g{:}, Uk(1) - K*(len*cos(Xk(1)) - lz)};
+%     lbg = [lbg; -tau];
+%     ubg = [ubg; tau];
+%     g = {g{:}, Uk(2) - ((1-time)^2*time - Uk(5)*(1-time)*time^2)};
+%     lbg = [lbg; -tau];
+%     ubg = [ubg; tau];
+
+%     g = {g{:}, Uk(3) - ((1-time)^2*time - Uk(6)*(1-time)*time^2)};
     %     lbg = [lbg; -tau];
     %     ubg = [ubg; tau];
     if (k > Tlanding/tt)&&(k <= Tliftoff/tt)
@@ -171,28 +185,26 @@ for k=0:N-1
         lbg = [lbg; -tau2; -tau2];
         ubg = [ubg; tau2; tau2];
     elseif k ==0
-%         g = {g{:}, Xk - X0};
-%         lbg = [lbg; 0; 0; 0; 0; 0; 0];
-%         ubg = [ubg; 0; 0; 0; 0; 0; 0];
-        g = {g{:}, Uk(1), Uk(2), Uk(3)};
-        lbg = [lbg; 0; 0; 0];
-        ubg = [ubg; 0; 0; 0];
-        g = {g{:}, Uk(1), Uk(2), Uk(3)};
-        lbg = [lbg; 0; 0; 0];
-        ubg = [ubg; 0; 0; 0];
+        Xinit = Xk;
+        g = {g{:}, Uk(1), Uk(2)};
+        lbg = [lbg; 0; 0];
+        ubg = [ubg; 0; 0];
+        g = {g{:}, Uk(1), Uk(2)};
+        lbg = [lbg; 0; 0];
+        ubg = [ubg; 0; 0];
         tmpUk4 = Uk(4);
         tmpUk5 = Uk(5);
     elseif k == N-1
-        g = {g{:}, Xk - X0};
+        g = {g{:}, Xk - Xinit};
         lbg = [lbg; 0; 0; StepLenght; 0; 0; 0];
         ubg = [ubg; 0; 0; StepLenght; 0; 0; 0];
-        g = {g{:}, Uk(1), Uk(2), Uk(3)};
-        lbg = [lbg; 0; 0; 0];
-        ubg = [ubg; 0; 0; 0];
+        g = {g{:}, Uk(1), Uk(2)};
+        lbg = [lbg; 0; 0];
+        ubg = [ubg; 0; 0];
     else
-        g = {g{:}, Uk(1), Uk(2), Uk(3)};
-        lbg = [lbg; 0; 0; 0];
-        ubg = [ubg; 0; 0; 0];
+        g = {g{:}, Uk(1), Uk(2)};
+        lbg = [lbg; 0; 0];
+        ubg = [ubg; 0; 0];
     end
 end
 
@@ -251,8 +263,8 @@ xlabel('time [s]');
 hold off;
 
 figure(2), subplot(3,1,1), stairs(u3_opt), legend('M [Nm]');
-subplot(3,1,2), stairs(x2_opt), legend('theta dot [rad/s]');;
-subplot(3,1,3), stairs(u4_opt),hold on, stairs(u5_opt,'r'), legend('Bezier parameters [Nm]');;
+subplot(3,1,2), stairs(x2_opt), legend('theta dot [rad/s]');
+subplot(3,1,3), stairs(u4_opt),hold on, stairs(u5_opt,'r'), legend('Bezier parameters [Nm]');
 
 figure(3)
 n = size(x1_opt,1);
@@ -281,7 +293,7 @@ for k=1:n
 %     axis([-0.5 3 -0.5 3])
     % Store the frame
     xlabel('x'); ylabel('z');
-    title('L = \theta^2');
+    title('L = \theta^2; step lenght = 2 [m]');
     drawnow
-    pause(0.1)
+    pause(0.05)
 end
