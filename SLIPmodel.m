@@ -3,27 +3,28 @@ close all
 clc
 
 import casadi.*
-
-DeltaL = 0.1;
+obstacle_height = 0.5;
+len = 0.7;
+grav = - 9.81;
+z_flight = obstacle_height;
+Tlanding = ceil(sqrt(- z_flight/0.5/grav)*100)/100;
+Tsw = 2*Tlanding;
+% DeltaL = 0.1;
 m = 1; % mass of the pendulum
-T = 0.5; % total step time
-Duty = 0.3;
+Duty = 0.2; % duty factor: Duty = Tst/T
+T = ceil(Tsw/(1-Duty)*100)/100;
 Tst = Duty*T;
-Tsw = (1-Duty)*T;
-Tlanding = Tsw/2; 
 Tliftoff = Tlanding+Tst;
 freq = 0.5/Tst;
 omega = freq*2*pi;
 K = m*omega^2;
 % K = m*(pi/Tst)^2;
-grav = - 9.81;
-z_flight = - 0.5*grav*(Tlanding)^2;
+% z_flight = - 0.5*grav*(Tlanding)^2;
 % zdot_landing = - grav*Tsw/2;
 % % Stiffness required to push back the mass given the landing speed and
 % % desired compression of the spring
 % K = - m*grav*(DeltaL + z_flight)/DeltaL^2;
 % % Spring stiffness [N/m] 
-len = 0.7;
 % % angular speed and natural frequency of the system
 % omega = sqrt(K/m);
 % freq = omega/2/pi;
@@ -34,7 +35,7 @@ tt = 0.005; % integration time (sampling time)
 % T = Tst + Tsw; % period corresponding to 1 step
 
 % Desired step lenght
-StepLenght = 1;
+StepLenght = 0.5;
 
 
 ni = 3;
@@ -139,7 +140,7 @@ for k=0:N-1
     lbw = [lbw; u1min; u2min; u3min];   % normal ground reaction force u(1) can only be positive
     ubw = [ubw; u1max; u2max; u3max];
     w0 = [w0; 0; 0; 0];
-
+    
     % Integrate till the end of the interval
     [Xk_end, Jk] = easycall(F, Xk, Uk);
     J=J+Jk;
@@ -161,9 +162,9 @@ for k=0:N-1
     lbg = [lbg; 0; 0; 0; 0; 0; 0];
     ubg = [ubg; 0; 0; 0; 0; 0; 0];
     % the contact point must always be positive
-%     g = {g{:}, Xk(5)-len*cos(Xk(1))};
-%     lbg = [lbg; 0];
-%     ubg = [ubg; inf];
+    %     g = {g{:}, Xk(5)-len*cos(Xk(1))};
+    %     lbg = [lbg; 0];
+    %     ubg = [ubg; inf];
     % add complementarity constraint
     %     g = {g{:}, Uk(3)*(Xk(5)-len*cos(Xk(1)))};
     %     lbg = [lbg; 0];
@@ -176,17 +177,17 @@ for k=0:N-1
     %     ubg = [ubg; tau];
     
     % parametrize fn
-%         time = (k*tt - Tlanding)/(Tliftoff-Tlanding);
-%         g = {g{:}, Uk(1) - ((1-time)^2*time - Uk(4)*(1-time)*time^2)};
-%         lbg = [lbg; -tau];
-%         ubg = [ubg; tau];
-%         g = {g{:}, Uk(2) - ((1-time)^2*time - Uk(5)*(1-time)*time^2)};
-%         lbg = [lbg; -tau];
-%         ubg = [ubg; tau];
+    %         time = (k*tt - Tlanding)/(Tliftoff-Tlanding);
+    %         g = {g{:}, Uk(1) - ((1-time)^2*time - Uk(4)*(1-time)*time^2)};
+    %         lbg = [lbg; -tau];
+    %         ubg = [ubg; tau];
+    %         g = {g{:}, Uk(2) - ((1-time)^2*time - Uk(5)*(1-time)*time^2)};
+    %         lbg = [lbg; -tau];
+    %         ubg = [ubg; tau];
     
-%         g = {g{:}, Uk(3) - ((1-time)^2*time - Uk(6)*(1-time)*time^2)};
-%         lbg = [lbg; -tau];
-%             ubg = [ubg; tau];
+    %         g = {g{:}, Uk(3) - ((1-time)^2*time - Uk(6)*(1-time)*time^2)};
+    %         lbg = [lbg; -tau];
+    %             ubg = [ubg; tau];
     if k ==0
         Xinit = Xk;
         g = {g{:}, Uk(1)};
@@ -215,10 +216,9 @@ for k=0:N-1
         g = {g{:}, Xk(5) - l*cos(Xk(1)) - Ztouchd};
         lbg = [lbg; -tau3];
         ubg = [ubg; tau3];
-        % impose the Bezier coefficient to be constant during stance
-%         g = {g{:}, Uk(4) - tmpUk4};
-%         lbg = [lbg; -tau2];
-%         ubg = [ubg; tau2];
+        g = {g{:}, Uk(3)};
+        lbg = [lbg; 0];
+        ubg = [ubg; 0];
     elseif k == N-1
         g = {g{:}, Xk - Xinit};
         lbg = [lbg; 0; 0; StepLenght; 0; 0; 0;];
@@ -270,10 +270,10 @@ xlabel('time [s]');
 subplot(3,1,2),
 plot(tgrid, x4_opt,'k'), hold on;
 plot(tgrid, x6_opt,'r');
-% plot(tgrid, x2_opt,'g');
+plot(tgrid, x2_opt,'g');
 % stairs(tgrid, [u_opt; nan], '-.')
 xlabel('t')
-legend('x dot [m/s]','z dot [m/s]')
+legend('x dot [m/s]','z dot [m/s]','theta dot [rad/s]')
 xlabel('time [s]');
 subplot(3,1,3);
 % handle = stairs(tgrid,[[u1_opt; nan],[u2_opt; nan],[u3_opt; nan]]);hold on;
