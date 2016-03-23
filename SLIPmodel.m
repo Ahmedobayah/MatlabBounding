@@ -4,32 +4,38 @@ clc
 
 import casadi.*
 
-DeltaL = 0.4;
+DeltaL = 0.1;
 m = 1; % mass of the pendulum
-Tsw = 1; % swing time
+T = 0.5; % total step time
+Duty = 0.3;
+Tst = Duty*T;
+Tsw = (1-Duty)*T;
+Tlanding = Tsw/2; 
+Tliftoff = Tlanding+Tst;
+freq = 0.5/Tst;
+omega = freq*2*pi;
+K = m*omega^2;
+% K = m*(pi/Tst)^2;
 grav = - 9.81;
-z_flight = - 0.5*grav*Tsw^2;
-zdot_landing = - grav*Tsw/2;
-% Stiffness required to push back the mass given the landing speed and
-% desired compression of the spring
-K = - m*grav*(DeltaL + z_flight)/DeltaL^2;
-% Spring stiffness [N/m] 
+z_flight = - 0.5*grav*(Tlanding)^2;
+% zdot_landing = - grav*Tsw/2;
+% % Stiffness required to push back the mass given the landing speed and
+% % desired compression of the spring
+% K = - m*grav*(DeltaL + z_flight)/DeltaL^2;
+% % Spring stiffness [N/m] 
 len = 0.7;
-% angular speed and natural frequency of the system
-omega = sqrt(K/m);
-freq = omega/2/pi;
-Tst = 1/freq*0.5; % stance time is half of the spring period
-
-T = Tst + Tsw; % period corresponding to 1 step
+% % angular speed and natural frequency of the system
+% omega = sqrt(K/m);
+% freq = omega/2/pi;
+% Tst = 1/freq*0.5; % stance time is half of the spring period
 tt = 0.005; % integration time (sampling time)
+% Tst = ceil(Tst*100)/100; % round the landing instant to the upper centi-second (so that the counter is integer)
+
+% T = Tst + Tsw; % period corresponding to 1 step
 
 % Desired step lenght
-StepLenght = 0;
+StepLenght = 1;
 
-
-Tlanding = (Tsw/2); 
-Tliftoff = (Tsw/2) + Tst;
-Tliftoff = ceil(Tliftoff*100)/100; % round the liftoff instant to the upper centi-second (so that the counter is integer)
 
 ni = 3;
 % Declare model variables
@@ -73,7 +79,8 @@ Lag = E - V;
 % Equation of motion
 % eq = jtimes(gradient(Lag,dq),q,dq) - gradient(Lag,q);
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
-xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
+% xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
+xdot = [thetad; eq(1) - M - fn*len*sin(theta); xd; eq(2); zd; eq(3) + fn/m];
 % Objective term
 L = theta^2 + u'*u;
 
@@ -118,8 +125,8 @@ ubg = [];
 % "Lift" initial conditions
 X0 = MX.sym('X0', nv);
 w = {w{:}, X0};
-lbw = [lbw; 0; 0; 0; 0; len+1; 0];
-ubw = [ubw; 0; 0; 0; 0; len+1; 0];
+lbw = [lbw; 0; 0; 0; StepLenght/T; z_flight+len; 0];
+ubw = [ubw; 0; 0; 0; StepLenght/T; z_flight+len; 0];
 w0 = [w0; 0; 0; 0; 0; 0; 0];
 
 % Formulate the NLP
@@ -144,10 +151,6 @@ for k=0:N-1
         ubw = [ubw; inf; inf;  inf;  inf; inf; inf];
         w0 = [w0; 0; 0; 0; 0; 0; 0];
         J = J + Jfinal;
-        %     elseif k ==  Tliftoff/tt
-        %         lbw = [lbw; -inf; 3; -inf; 3; 0;  3];  % z coordinate can only be positive
-        %         ubw = [ubw;  inf; 3; inf; 3; inf; 3];
-        %         w0 = [w0; 0; 0; 0; 0; 0; 0];
     else
         lbw = [lbw; -inf; -inf;  -inf;  -inf;  -inf;  -inf];  % z coordinate can only be positive
         ubw = [ubw;  inf;  inf;  inf;  inf;  inf;  inf];
@@ -186,11 +189,10 @@ for k=0:N-1
 %             ubg = [ubg; tau];
     if k ==0
         Xinit = Xk;
-        g = {g{:}, Uk(1), Uk(2)};
-        lbg = [lbg; 0; 0];
-        ubg = [ubg; 0; 0];
-%         tmpUk4 = Uk(4);
-%         tmpUk5 = Uk(5);
+        g = {g{:}, Uk(1)};
+        lbg = [lbg; 0];
+        ubg = [ubg; 0];
+
     elseif (k >= Tlanding/tt)&&(k <= Tliftoff/tt)
         if (k == Tlanding/tt)
         %     x,z coordinates of the foot at touch down
@@ -202,11 +204,11 @@ for k=0:N-1
         lz = (Xk(5) - Ztouchd);
         l = sqrt(lx^2+lz^2);
         g = {g{:}, Uk(1) - K*(len*cos(Xk(1)) - lz)};
-        lbg = [lbg; -tau];
-        ubg = [ubg; tau];
-        %         g = {g{:}, Uk(2) - K*(len*sin(Xk(1)) - lx)};
-        %         lbg = [lbg; -tau];
-        %         ubg = [ubg; tau];
+        lbg = [lbg; 0];
+        ubg = [ubg; 0];
+%         g = {g{:}, Uk(2) - K*(len*sin(Xk(1)) - lx)};
+%         lbg = [lbg; -tau];
+%         ubg = [ubg; tau];
         g = {g{:}, Xk(3) - l*sin(Xk(1)) - Xtouchd};
         lbg = [lbg; -tau3];
         ubg = [ubg; tau3];
@@ -218,22 +220,23 @@ for k=0:N-1
 %         lbg = [lbg; -tau2];
 %         ubg = [ubg; tau2];
     elseif k == N-1
-        g = {g{:}, Xk(3) - Xinit(3)};
-        lbg = [lbg; StepLenght];
-        ubg = [ubg; StepLenght];
-        g = {g{:}, Uk(1), Uk(2), Uk(3)};
-        lbg = [lbg; 0; 0; 0];
-        ubg = [ubg; 0; 0; 0];
+        g = {g{:}, Xk - Xinit};
+        lbg = [lbg; 0; 0; StepLenght; 0; 0; 0;];
+        ubg = [ubg; 0; 0; StepLenght; 0; 0; 0;];
+        g = {g{:}, Uk(1)};
+        lbg = [lbg; 0];
+        ubg = [ubg; 0];
     else
-        g = {g{:}, Uk(1), Uk(2),Uk(3)};
-        lbg = [lbg; 0; 0; 0];
-        ubg = [ubg; 0; 0; 0];
+        g = {g{:}, Uk(1)};
+        lbg = [lbg; 0];
+        ubg = [ubg; 0];
     end
 end
 
 
 % Create an NLP solver
 prob = struct('f', J, 'x', vertcat(w{:}), 'g', vertcat(g{:}));
+
 solver = nlpsol('solver', 'ipopt', prob);
 
 % Solve the NLP
@@ -253,9 +256,6 @@ x6_opt = w_opt(6:9:end);
 u1_opt = w_opt(7:9:end);
 u2_opt = w_opt(8:9:end);
 u3_opt = w_opt(9:9:end);
-% u4_opt = w_opt(10:9:end);
-% u5_opt = w_opt(11:9:end);
-
 
 tgrid = 0:tt:T;
 clf;
@@ -295,19 +295,24 @@ ConcatzzStance = []; ConcatxxStance = [];
 ConcatzzFly = []; ConcatxxFly = [];
 for k=1:n
     P0z = x5_opt(k) - len*cos(x1_opt(k));    
-    P0x = x3_opt(k) - len*sin(x1_opt(k)); 
+    P0x = x3_opt(k) - len*sin(x1_opt(k));     
     % end effector coordinates
     zz = [x5_opt(k), P0z];
     xx = [x3_opt(k), P0x];
     % base coordinates
-    floatz = [0, 0, P0z];
-    floatx = [0, P0x, P0x];
+%     floatz = [0, 0, P0z];
+%     floatx = [0, P0x, P0x];
     floorx = [-1 1];
     floory = [0 0];
     if (k>=Tlanding/tt)&&(k <= Tliftoff/tt) % stance phase
         if (k == Tlanding/tt)
             Xt = P0x; Zt = P0z;
         end
+        Xtd = P0x-Xt;
+        Ztd = P0z-Zt;
+        l = sqrt(Xtd^2 + Ztd^2);
+        P0z = x5_opt(k) - l*cos(x1_opt(k));
+        P0x = x3_opt(k) - l*sin(x1_opt(k));
         ConcatzzStance = [ConcatzzStance; zz];
         ConcatxxStance = [ConcatxxStance; xx];
         plot(xx,zz,'r', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', ConcatxxStance', ConcatzzStance','r', ConcatxxFly', ConcatzzFly','k', Xt,Zt,'ko')
