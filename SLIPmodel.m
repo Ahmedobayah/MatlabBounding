@@ -3,28 +3,27 @@ close all
 clc
 
 import casadi.*
-obstacle_height = 0.5;
-len = 0.7;
-grav = - 9.81;
-z_flight = obstacle_height;
-Tlanding = ceil(sqrt(- z_flight/0.5/grav)*100)/100;
-Tsw = 2*Tlanding;
-% DeltaL = 0.1;
+
+DeltaL = 0.1;
 m = 1; % mass of the pendulum
-Duty = 0.2; % duty factor: Duty = Tst/T
-T = ceil(Tsw/(1-Duty)*100)/100;
+T = 0.5; % total step time
+Duty = 0.3;
 Tst = Duty*T;
+Tsw = (1-Duty)*T;
+Tlanding = Tsw/2; 
 Tliftoff = Tlanding+Tst;
 freq = 0.5/Tst;
 omega = freq*2*pi;
 K = m*omega^2;
 % K = m*(pi/Tst)^2;
-% z_flight = - 0.5*grav*(Tlanding)^2;
+grav = - 9.81;
+z_flight = - 0.5*grav*(Tlanding)^2;
 % zdot_landing = - grav*Tsw/2;
 % % Stiffness required to push back the mass given the landing speed and
 % % desired compression of the spring
 % K = - m*grav*(DeltaL + z_flight)/DeltaL^2;
 % % Spring stiffness [N/m] 
+len = 0.7;
 % % angular speed and natural frequency of the system
 % omega = sqrt(K/m);
 % freq = omega/2/pi;
@@ -35,8 +34,10 @@ tt = 0.005; % integration time (sampling time)
 % T = Tst + Tsw; % period corresponding to 1 step
 
 % Desired step lenght
-StepLenght = 0.5;
-
+StepLenght = 1;
+Xinit = 0;
+HorSpeed = StepLenght/Tsw;
+CaptPoint = Xinit + HorSpeed/sqrt(-grav/len);
 
 ni = 3;
 % Declare model variables
@@ -56,8 +57,8 @@ ddq = MX.sym('ddq',size(q,1)); % theta1_dot_dot
 
 u = MX.sym('u',ni);  % u(1) = f (GRF), u(2) = M (Momentum of the flywheel)
 
-fn = u(1);
-ft = u(2);
+fn = u(1)*cos(theta);
+ft = u(1)*sin(theta);
 M = u(3);
 % add force/torque limits
 u1max = inf;
@@ -76,12 +77,11 @@ V = m*grav*z;
 % Lagrangian
 Lag = E - V;
 
-
 % Equation of motion
 % eq = jtimes(gradient(Lag,dq),q,dq) - gradient(Lag,q);
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 % xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
-xdot = [thetad; eq(1) - M - fn*len*sin(theta); xd; eq(2); zd; eq(3) + fn/m];
+xdot = [thetad; eq(1) - M - fn*len*sin(theta) - ft*len*cos(theta); xd; eq(2) + ft/m; zd; eq(3) + fn/m];
 % Objective term
 L = theta^2 + u'*u;
 
@@ -126,8 +126,8 @@ ubg = [];
 % "Lift" initial conditions
 X0 = MX.sym('X0', nv);
 w = {w{:}, X0};
-lbw = [lbw; 0; 0; 0; StepLenght/T; z_flight+len; 0];
-ubw = [ubw; 0; 0; 0; StepLenght/T; z_flight+len; 0];
+lbw = [lbw; 0; 0; 0; HorSpeed; z_flight+len; 0];
+ubw = [ubw; 0; 0; 0; HorSpeed; z_flight+len; 0];
 w0 = [w0; 0; 0; 0; 0; 0; 0];
 
 % Formulate the NLP
@@ -140,7 +140,7 @@ for k=0:N-1
     lbw = [lbw; u1min; u2min; u3min];   % normal ground reaction force u(1) can only be positive
     ubw = [ubw; u1max; u2max; u3max];
     w0 = [w0; 0; 0; 0];
-    
+
     % Integrate till the end of the interval
     [Xk_end, Jk] = easycall(F, Xk, Uk);
     J=J+Jk;
@@ -161,33 +161,6 @@ for k=0:N-1
     g = {g{:}, Xk_end-Xk};
     lbg = [lbg; 0; 0; 0; 0; 0; 0];
     ubg = [ubg; 0; 0; 0; 0; 0; 0];
-    % the contact point must always be positive
-    %     g = {g{:}, Xk(5)-len*cos(Xk(1))};
-    %     lbg = [lbg; 0];
-    %     ubg = [ubg; inf];
-    % add complementarity constraint
-    %     g = {g{:}, Uk(3)*(Xk(5)-len*cos(Xk(1)))};
-    %     lbg = [lbg; 0];
-    %     ubg = [ubg; tau];
-    %     g = {g{:}, Uk(2)*(Xk(5)-len*cos(Xk(1)))};
-    %     lbg = [lbg; 0];
-    %     ubg = [ubg; tau];
-    %     g = {g{:}, Uk(1)*(Xk(5)-len*cos(Xk(1)))};
-    %     lbg = [lbg; 0];
-    %     ubg = [ubg; tau];
-    
-    % parametrize fn
-    %         time = (k*tt - Tlanding)/(Tliftoff-Tlanding);
-    %         g = {g{:}, Uk(1) - ((1-time)^2*time - Uk(4)*(1-time)*time^2)};
-    %         lbg = [lbg; -tau];
-    %         ubg = [ubg; tau];
-    %         g = {g{:}, Uk(2) - ((1-time)^2*time - Uk(5)*(1-time)*time^2)};
-    %         lbg = [lbg; -tau];
-    %         ubg = [ubg; tau];
-    
-    %         g = {g{:}, Uk(3) - ((1-time)^2*time - Uk(6)*(1-time)*time^2)};
-    %         lbg = [lbg; -tau];
-    %             ubg = [ubg; tau];
     if k ==0
         Xinit = Xk;
         g = {g{:}, Uk(1)};
@@ -204,7 +177,7 @@ for k=0:N-1
         lx = (Xk(3) - Xtouchd);
         lz = (Xk(5) - Ztouchd);
         l = sqrt(lx^2+lz^2);
-        g = {g{:}, Uk(1) - K*(len*cos(Xk(1)) - lz)};
+        g = {g{:}, Uk(1) - K*(len - l)};
         lbg = [lbg; 0];
         ubg = [ubg; 0];
 %         g = {g{:}, Uk(2) - K*(len*sin(Xk(1)) - lx)};
@@ -216,9 +189,10 @@ for k=0:N-1
         g = {g{:}, Xk(5) - l*cos(Xk(1)) - Ztouchd};
         lbg = [lbg; -tau3];
         ubg = [ubg; tau3];
-        g = {g{:}, Uk(3)};
-        lbg = [lbg; 0];
-        ubg = [ubg; 0];
+        % impose the Bezier coefficient to be constant during stance
+%         g = {g{:}, Uk(4) - tmpUk4};
+%         lbg = [lbg; -tau2];
+%         ubg = [ubg; tau2];
     elseif k == N-1
         g = {g{:}, Xk - Xinit};
         lbg = [lbg; 0; 0; StepLenght; 0; 0; 0;];
@@ -270,24 +244,21 @@ xlabel('time [s]');
 subplot(3,1,2),
 plot(tgrid, x4_opt,'k'), hold on;
 plot(tgrid, x6_opt,'r');
-plot(tgrid, x2_opt,'g');
+% plot(tgrid, x2_opt,'g');
 % stairs(tgrid, [u_opt; nan], '-.')
 xlabel('t')
-legend('x dot [m/s]','z dot [m/s]','theta dot [rad/s]')
+legend('x dot [m/s]','z dot [m/s]')
 xlabel('time [s]');
 subplot(3,1,3);
 % handle = stairs(tgrid,[[u1_opt; nan],[u2_opt; nan],[u3_opt; nan]]);hold on;
-stairs(tgrid, [u1_opt;nan],'r'), hold on;
+stairs(tgrid, [u1_opt;nan].*cos(x1_opt),'r'), hold on;
+stairs(tgrid, [u1_opt;nan].*sin(x1_opt),'b'),
 stairs(tgrid, [u2_opt;nan],'k')
 % stairs(tgrid, [u3_opt;nan],'g')
 % handle(1).Marker = 'o'; handle(2).Marker = '*';
-legend('fn [N]', 'ft [N]');
+legend('fn [N]', 'ft [N]', 'M [Nm]');
 xlabel('time [s]');
 hold off;
-
-% figure(2), subplot(3,1,1), stairs(tgrid, [u3_opt;nan]), legend('M [Nm]');
-% subplot(3,1,2), stairs(tgrid, x2_opt), legend('theta dot [rad/s]');
-% subplot(3,1,3), stairs(tgrid, [u4_opt;nan]),hold on, stairs(tgrid, [u5_opt;nan],'r'), legend('Bezier parameters [Nm]');
 
 figure(2)
 n = size(x1_opt,1);
@@ -315,16 +286,16 @@ for k=1:n
         P0x = x3_opt(k) - l*sin(x1_opt(k));
         ConcatzzStance = [ConcatzzStance; zz];
         ConcatxxStance = [ConcatxxStance; xx];
-        plot(xx,zz,'r', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', ConcatxxStance', ConcatzzStance','r', ConcatxxFly', ConcatzzFly','k', Xt,Zt,'ko')
+        plot(CaptPoint,0,'bo',xx,zz,'r', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', ConcatxxStance', ConcatzzStance','r', ConcatxxFly', ConcatzzFly','k', Xt,Zt,'ko')
     else % flight phase
         ConcatzzFly = [ConcatzzFly; zz];
         ConcatxxFly = [ConcatxxFly; xx];
-        plot(xx,zz,'k', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', ConcatxxFly', ConcatzzFly','k',ConcatxxStance', ConcatzzStance','r')
+        plot(CaptPoint,0,'bo',xx,zz,'k', x3_opt(k), x5_opt(k),'ro', floorx, floory, 'k--', ConcatxxFly', ConcatzzFly','k',ConcatxxStance', ConcatzzStance','r')
     end
 %     axis([-0.5 3 -0.5 3])
     % Store the frame
     xlabel('x'); ylabel('z');
-    title('L = \theta^2; step lenght = 2 [m]');
+    title('L = \theta^2 + u^2; step lenght = 1 [m]');
     drawnow
-    pause(0.005)
+    pause(0.05)
 end
