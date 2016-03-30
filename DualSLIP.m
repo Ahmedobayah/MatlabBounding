@@ -6,6 +6,7 @@ import casadi.*
 
 m = 1;
 len = 0.7;
+lenTr = 0.7;
 grav = - 9.81;
 % Gap lenght [m]
 GapLenght = 0.3;
@@ -33,27 +34,40 @@ T = Tst + Tsw; % period corresponding to 1 step
 Duty = Tst/T;
 Tliftoff = Tlanding + Tst;
 % number of control inputs
-ni = 2;
+ni = 4;
 % Declare model variables
-theta = MX.sym('theta'); % theta1
-thetad = MX.sym('thetad'); % theta1_dot
+theta1 = MX.sym('theta1'); % theta1
+thetad1 = MX.sym('thetad1'); % theta1_dot
+theta2 = MX.sym('theta2'); % theta1
+thetad2 = MX.sym('thetad2'); % theta1_dot
+theta3 = MX.sym('theta3'); % theta1
+thetad3 = MX.sym('thetad3'); % theta1_dot
+
 x = MX.sym('x');  % base x coordinate
 xd = MX.sym('xd'); % base x dot
 z = MX.sym('z'); % base y coordinate
 zd = MX.sym('zd'); % base y dot
 
 % state vector
-state = [theta; thetad; x; xd; z; zd];
+state = [theta1; thetad1; x; xd; z; zd; theta2; thetad2; theta3; thetad3];
 nv = size(state,1);
-q = [theta; x; z];
-dq = [thetad; xd; zd];
+q = [theta1; x; z; theta2; theta3];
+dq = [thetad1; xd; zd; thetad2; thetad3];
 ddq = MX.sym('ddq',size(q,1)); % theta1_dot_dot
 
 u = MX.sym('u',ni);
 % Control inputs
-fn = u(1)*cos(theta);
-ft = u(1)*sin(theta);
-M = u(2);
+fnFr = u(1)*sin(theta2);
+ftFr = u(1)*cos(theta2);
+MFr = u(2);
+fnHi = u(3)*sin(theta3);
+ftHi = u(3)*cos(theta3);
+MHi = u(4);
+fn1 = u(1)*cos(theta1);
+ft1 = u(1)*sin(theta1);
+fn3 = u(1)*cos(theta3);
+ft3 = u(1)*sin(theta3);
+
 % add force/torque limits
 u1max = inf;
 u1min = 0;
@@ -62,7 +76,7 @@ u2min = -inf;
 % Model equations
 % xdot = [x2;     - fr*x2 + grav/ll*sin(x1) - u];
 v_sq = xd^2 + zd^2;
-E = 0.5*m*len*v_sq + 0.5*m*len^2*thetad^2;
+E = 0.5*m*len*v_sq + 0.5*m*len^2*(thetad1^2 + thetad2^2);
 V = m*grav*z;
 
 % Lagrangian
@@ -72,9 +86,9 @@ Lag = E - V;
 % eq = jtimes(gradient(Lag,dq),q,dq) - gradient(Lag,q);
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 % xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
-xdot = [thetad; eq(1) - M - fn*len*sin(theta) - ft*len*cos(theta); xd; eq(2) + ft/m; zd; eq(3) + fn/m];
+xdot = [thetad1; eq(1) - MHi - fn1*len*sin(theta1) - ft1*len*cos(theta1); xd; eq(2) + ft1/m + ft3/m; zd; eq(3) + fn1/m + fn3/m; thetad2; eq(4) - fnHi*lenTr/2*sin(theta1 + theta2) + fnFr*lenTr/2*sin(theta1 + theta2); thetad3; eq(5) - MHi + fn3*len*sin(theta3)];
 % Objective term
-L = theta^2 + u'*u;
+L = theta1^2 + u'*u;
 
 
 % Continuous time dynamics
@@ -109,7 +123,9 @@ CaptPoint = zeros(1,StepNum);
 Xfinal = [StepLenght, StepLenght, StepLenght, StepLenght];
 
 x1_opt = []; x2_opt = []; x3_opt = []; x4_opt = [];
-x5_opt = []; x6_opt = []; u1_opt = []; u2_opt = [];
+x5_opt = []; x6_opt = []; x7_opt = []; x8_opt = []; 
+x9_opt = []; x10_opt = [];
+u1_opt = []; u2_opt = []; u3_opt = []; u4_opt = [];
 for ii = 1:StepNum   
     
     CaptPoint(ii) = XInit(ii) + HorSpeedFinal(ii)/sqrt(-grav/len);
@@ -128,9 +144,9 @@ for ii = 1:StepNum
     % "Lift" initial conditions
     X0 = MX.sym('X0', nv);
     w = {w{:}, X0};
-    lbw = [lbw; 0; 0; XInit(ii); HorSpeedInit(ii); z_flight+len; 0];
-    ubw = [ubw; 0; 0; XInit(ii); HorSpeedInit(ii); z_flight+len; 0];
-    w0 = [w0; 0; 0; 0; 0; 0; 0];
+    lbw = [lbw; 0; 0; XInit(ii); HorSpeedInit(ii); z_flight+len; 0; 0; 0; 0; 0;];
+    ubw = [ubw; 0; 0; XInit(ii); HorSpeedInit(ii); z_flight+len; 0; 0; 0; 0; 0;];
+    w0 = [w0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0;];
     
     % Formulate the NLP
     Xk = X0;
@@ -139,9 +155,9 @@ for ii = 1:StepNum
         % New NLP variable for the control
         Uk = MX.sym(['U_' num2str(k)], ni);
         w = {w{:}, Uk};
-        lbw = [lbw; u1min; u2min];
-        ubw = [ubw; u1max; u2max];
-        w0 = [w0; 0; 0];
+        lbw = [lbw; u1min; u2min; u1min; u2min];
+        ubw = [ubw; u1max; u2max; u1max; u2max];
+        w0 = [w0; 0; 0; 0; 0];
         
         % Integrate till the end of the interval
         [Xk_end, Jk] = easycall(F, Xk, Uk);
@@ -150,19 +166,19 @@ for ii = 1:StepNum
         Xk = MX.sym(['X_' num2str(k+1)], nv);
         w = {w{:}, Xk};
         if k == N-1
-            lbw = [lbw; -inf; -inf;  -inf;  -inf; -inf; -inf];  % z coordinate can only be positive
-            ubw = [ubw; inf; inf;  inf;  inf; inf; inf];
-            w0 = [w0; 0; 0; 0; 0; 0; 0];
+            lbw = [lbw; -inf; -inf;  -inf;  -inf; -inf; -inf;  -inf;  -inf; -inf; -inf];  % z coordinate can only be positive
+            ubw = [ubw; inf; inf;  inf;  inf; inf; inf;  inf;  inf; inf; inf];
+            w0 = [w0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0];
             J = J + Jfinal;
         else
-            lbw = [lbw; -inf; -inf;  -inf;  -inf;  -inf;  -inf];  % z coordinate can only be positive
-            ubw = [ubw;  inf;  inf;  inf;  inf;  inf;  inf];
-            w0 = [w0; 0; 0; 0; 0; 0; 0];
+            lbw = [lbw; -inf; -inf;  -inf;  -inf;  -inf;  -inf;  -inf;  -inf;  -inf;  -inf];  % z coordinate can only be positive
+            ubw = [ubw;  inf;  inf;  inf;  inf;  inf;  inf;  inf;  inf;  inf;  inf];
+            w0 = [w0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0];
         end
         % Add equality constraint
         g = {g{:}, Xk_end-Xk};
-        lbg = [lbg; 0; 0; 0; 0; 0; 0];
-        ubg = [ubg; 0; 0; 0; 0; 0; 0];
+        lbg = [lbg; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0];
+        ubg = [ubg; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0];
         if k ==0
             Xinit = Xk;
             g = {g{:}, Uk(1)};
@@ -197,8 +213,8 @@ for ii = 1:StepNum
 %             ubg = [ubg; 0];
         elseif k == N-1
             g = {g{:}, Xk - Xinit};
-            lbg = [lbg; 0; 0; Xfinal(ii); HorSpeedFinal(ii); 0; 0;];
-            ubg = [ubg; 0; 0; Xfinal(ii); HorSpeedFinal(ii); 0; 0;];
+            lbg = [lbg; 0; 0; Xfinal(ii); HorSpeedFinal(ii); 0; 0; 0; 0; 0; 0];
+            ubg = [ubg; 0; 0; Xfinal(ii); HorSpeedFinal(ii); 0; 0; 0; 0; 0; 0];
             g = {g{:}, Uk(1)};
             lbg = [lbg; 0];
             ubg = [ubg; 0];
@@ -220,15 +236,20 @@ for ii = 1:StepNum
     sol = solver(arg);
     w_opt = full(sol.x);
     % allocating decision variables for plotting
-    x1_opt = [x1_opt; w_opt(1:8:end)];
-    x2_opt = [x2_opt; w_opt(2:8:end)];
-    x3_opt = [x3_opt; w_opt(3:8:end)];
-    x4_opt = [x4_opt; w_opt(4:8:end)];
-    x5_opt = [x5_opt; w_opt(5:8:end)];
-    x6_opt = [x6_opt; w_opt(6:8:end)];
-    u1_opt = [u1_opt; w_opt(7:8:end); nan];
-    u2_opt = [u2_opt; w_opt(8:8:end); nan];
-    
+    x1_opt = [x1_opt; w_opt(1:14:end)];
+    x2_opt = [x2_opt; w_opt(2:14:end)];
+    x3_opt = [x3_opt; w_opt(3:14:end)];
+    x4_opt = [x4_opt; w_opt(4:14:end)];
+    x5_opt = [x5_opt; w_opt(5:14:end)];
+    x6_opt = [x6_opt; w_opt(6:14:end)];
+    x7_opt = [x7_opt; w_opt(7:14:end)];
+    X8_opt = [x8_opt; w_opt(8:14:end)];
+    x9_opt = [x9_opt; w_opt(9:14:end)];
+    x10_opt = [x10_opt; w_opt(10:14:end)];
+    u1_opt = [u1_opt; w_opt(11:14:end); nan];
+    u2_opt = [u2_opt; w_opt(12:14:end); nan];
+    u3_opt = [u3_opt; w_opt(13:14:end); nan];
+    u4_opt = [u4_opt; w_opt(14:14:end); nan];
     % Optimized Capture Point
     OptCP(ii) = x3_opt(end) + x4_opt(end)/sqrt(-grav/len);
 end
