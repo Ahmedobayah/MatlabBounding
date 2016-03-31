@@ -212,9 +212,9 @@ for ii = 1:StepNum
     
     % Create an NLP solver
     prob = struct('f', J, 'x', vertcat(w{:}), 'g', vertcat(g{:}));
-    options.ipopt = struct('max_iter',100);
+    options.ipopt = struct('max_iter',5);
     solver = nlpsol('solver', 'ipopt', prob, options);
-    solver.printOptions();
+    % solver.printOptions();
     
     % Solve the NLP
     arg = struct('x0', w0, 'lbx', lbw, 'ubx', ubw,...
@@ -308,3 +308,8 @@ for k=1:n
     drawnow
     pause(0.01)
 end
+
+figure(3), 
+subplot(3,1,1),plot(tgrid,Fn),legend('normal GRF'), title('Ground Reaction Forces and Torques');
+subplot(3,1,2),plot(tgrid,Ft), legend('tangent GRF');
+subplot(3,1,3),plot(tgrid,u2_opt),legend('hip torque M');
