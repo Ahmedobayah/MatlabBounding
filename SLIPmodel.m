@@ -8,7 +8,7 @@ m = 1;
 len = 0.7;
 grav = - 9.81;
 % Gap lenght [m]
-GapLenght = 0.3;
+GapLenght = 0.5;
 % Obstacle height
 obstacle_height = 0.3;
 
@@ -72,7 +72,8 @@ Lag = E - V;
 % eq = jtimes(gradient(Lag,dq),q,dq) - gradient(Lag,q);
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 % xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
-xdot = [thetad; eq(1) - M - fn*len*sin(theta) - ft*len*cos(theta); xd; eq(2) + ft/m; zd; eq(3) + fn/m];
+xdot = [thetad; -grav/len*sin(theta) - M - fn*len*sin(theta) - ft*len*cos(theta); xd; eq(2) + ft/m; zd; eq(3) + fn/m];
+
 % Objective term
 L = theta^2 + u'*u;
 
@@ -211,8 +212,8 @@ for ii = 1:StepNum
     
     % Create an NLP solver
     prob = struct('f', J, 'x', vertcat(w{:}), 'g', vertcat(g{:}));
-    
-    solver = nlpsol('solver', 'ipopt', prob);
+    options.ipopt = struct('max_iter',100,'acceptable_tol',10e+100);
+    solver = nlpsol('solver', 'ipopt', prob,options);
     
     % Solve the NLP
     arg = struct('x0', w0, 'lbx', lbw, 'ubx', ubw,...
@@ -301,7 +302,8 @@ for k=1:n
     end
     % Store the frame
     xlabel('x'); ylabel('z');
-    title('L = \theta^2 + u^2; step lenght = 0.3 + 0.3 + 0.3 + 0.3 [m]');
+    % v  vb vbb                     axis([ 0 3 0 3])
+    title('L = \theta^2 + u^2;');
     drawnow
     pause(0.01)
 end

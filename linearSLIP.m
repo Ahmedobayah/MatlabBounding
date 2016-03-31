@@ -8,7 +8,7 @@ m = 1;
 len = 0.7;
 grav = - 9.81;
 % Gap lenght [m]
-GapLenght = 0.2;
+GapLenght = 0.5;
 % Obstacle height
 obstacle_height = 0.3;
 
@@ -212,7 +212,7 @@ for ii = 1:StepNum
     
     % Create an NLP solver
     prob = struct('f', J, 'x', vertcat(w{:}), 'g', vertcat(g{:}));
-    options.ipopt = struct('max_iter',5);
+    options.ipopt = struct('max_iter',1000,'acceptable_tol',10e+100);
     solver = nlpsol('solver', 'ipopt', prob, options);
     % solver.printOptions();
     
@@ -304,7 +304,7 @@ for k=1:n
     % Store the frame
     xlabel('x'); ylabel('z');
     % v  vb vbb                     axis([ 0 3 0 3])
-    title('L = \theta^2 + u^2; step lenght = 0.3 + 0.3 + 0.3 + 0.3 [m]');
+    title('linearized SLIP, L = \theta^2 + u^2');
     drawnow
     pause(0.01)
 end
