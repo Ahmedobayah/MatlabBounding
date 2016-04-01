@@ -1,5 +1,5 @@
 %% Plot the solution
-function []= Plot(x1_opt,x2_opt,x3_opt,x4_opt, x5_opt, x6_opt, u1_opt, u2_opt,tt,T,StepNum,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint)
+function [] = Plot(x1_opt,x2_opt,x3_opt,x4_opt, x5_opt, x6_opt, Fn, Ft, M,tt,T,StepNum,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint)
 close all;
 
 tgrid = 0:tt:StepNum*T+(StepNum-1)*tt;
@@ -21,12 +21,11 @@ xlabel('t')
 legend('x dot [m/s]','z dot [m/s]')
 xlabel('time [s]');
 subplot(3,1,3);
-Fn = [u1_opt].*cos(x1_opt);
-Ft = [u1_opt].*sin(x1_opt);
+
 % handle = stairs(tgrid,[[u1_opt; nan],[u2_opt; nan],[u3_opt; nan]]);hold on;
 stairs(tgrid, Fn,'r'), hold on;
 stairs(tgrid, Ft,'b'),
-stairs(tgrid, [u2_opt],'k')
+stairs(tgrid, [M],'k')
 % stairs(tgrid, [u3_opt;nan],'g')
 % handle(1).Marker = 'o'; handle(2).Marker = '*';
 legend('fn [N]', 'ft [N]', 'M [Nm]');
@@ -69,10 +68,10 @@ for k=1:n
     xlabel('x'); ylabel('z');
     title('L = \theta^2 + u^2');
     drawnow
-    pause(0.01)
+    pause(0.005)
 end
 
 figure(3), 
 subplot(3,1,1),plot(tgrid,Fn),legend('normal GRF'), title('Ground Reaction Forces and Torques');
 subplot(3,1,2),plot(tgrid,Ft), legend('tangent GRF');
-subplot(3,1,3),plot(tgrid,u2_opt),legend('hip torque M');
+subplot(3,1,3),plot(tgrid,M),legend('hip torque M');
