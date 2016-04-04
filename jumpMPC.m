@@ -94,6 +94,7 @@ Q = 0;
 [F,X,Q] = RK4(f,X,U,T,N,Q,X0);
 % Number of steps
 NumIter = 31;
+Incr = 10;
 % initial position
 XInit = 0;
 Xfinal = StepLenght;
@@ -104,10 +105,7 @@ StateInit = [0;0;XInit;HorSpeedInit;z_flight+len;0];
 StateFinal = [0;0;Xfinal;StepLenght/T;0;0];
 CaptPoint = zeros(1,NumIter);
 
-% initialize the vectors of the solution
-% x1_opt = []; x2_opt = []; x3_opt = []; x4_opt = [];
-% x5_opt = []; x6_opt = []; u1_opt = []; u2_opt = [];
-for ii = 1:5:NumIter
+for ii = 1:Incr:NumIter
     display(ii);
     % initialize the vectors of the solution
     x1_opt = []; x2_opt = []; x3_opt = []; x4_opt = [];
@@ -238,17 +236,20 @@ for ii = 1:5:NumIter
     Ft = [u1_opt].*sin(x1_opt);
     M = u2_opt;
     
-    Plot(x1_opt,x2_opt,x3_opt,x4_opt, x5_opt, x6_opt, Fn, Ft, M, tt, T,NumIter,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint);
+    % Plot(x1_opt,x2_opt,x3_opt,x4_opt, x5_opt, x6_opt, Fn, Ft, M, tt, T,NumIter,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint);
     % pause()
     % % Simulate the solution and plot
-    % [Theta, Thetad, Xx, Xxd, Zz, Zzd] = Simulation(Fn,Ft,M,N,x1_opt(1),x2_opt(1),x3_opt(1),x4_opt(1),x5_opt(1),x6_opt(1),T);
-    % Plot(Theta', Thetad', Xx', Xxd', Zz', Zzd', Fn, Ft, M, tt, T,NumIter,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint);
+    [Theta, Thetad, Xx, Xxd, Zz, Zzd] = Simulation(Fn,Ft,M,Incr,x1_opt(1),x2_opt(1),x3_opt(1),x4_opt(1),x5_opt(1),x6_opt(1),T);
+    Plot(Theta', Thetad', Xx', Xxd', Zz', Zzd', Fn, Ft, M, tt, T,NumIter,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint);
    
     % Current state equal to the new initial state
-    StateInit = [x1_opt(ii);x2_opt(ii);x3_opt(ii);x4_opt(ii);x5_opt(ii);x6_opt(ii)];
-    StateFinal = [0;0;StepLenght;StepLenght/T;0;0];
-    Tlanding1 = Tlanding1 - (ii+1)*tt
-    Tlanding2 = Tlanding2 - (ii+1)*tt
-    Tliftoff1 = Tliftoff1 - (ii+1)*tt
-    Tliftoff2 = Tliftoff2 - (ii+1)*tt 
+%     StateInit = [x1_opt(Incr);x2_opt(Incr);x3_opt(Incr);x4_opt(Incr);x5_opt(Incr);x6_opt(Incr)];
+%     StateFinal = [0;0;StepLenght-x3_opt(Incr);StepLenght/T-x4_opt(Incr);0;0];
+    StateInit = [Theta(Incr);Thetad(Incr);Xx(Incr);Xxd(Incr);Zz(Incr);Zzd(Incr)];
+    StateFinal = [0;0;StepLenght-Xx(Incr);StepLenght/T-Xxd(Incr);0;0];
+
+    Tlanding1 = Tlanding1 - (Incr+1)*tt;
+    Tliftoff1 = Tliftoff1 - (Incr+1)*tt;
+    Tlanding2 = Tlanding2 - (Incr+1)*tt;
+    Tliftoff2 = Tliftoff2 - (Incr+1)*tt;
 end

@@ -35,7 +35,7 @@ function [] = Plot(x1_opt,x2_opt,x3_opt,x4_opt, x5_opt, x6_opt, Fn, Ft, M,tt,T,S
 n = size(x1_opt,1);
 ConcatzzStance = []; ConcatxxStance = [];
 ConcatzzFly = []; ConcatxxFly = [];
-for k=1:5
+for k=1:10
     P0z = x5_opt(k) - len*cos(x1_opt(k));
     P0x = x3_opt(k) - len*sin(x1_opt(k));
     % end effector coordinates
