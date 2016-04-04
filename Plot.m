@@ -1,6 +1,5 @@
 %% Plot the solution
 function [] = Plot(x1_opt,x2_opt,x3_opt,x4_opt, x5_opt, x6_opt, Fn, Ft, M,tt,T,StepNum,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint)
-close all;
 
 tgrid = 0:tt:StepNum*T+(StepNum-1)*tt;
 clf;
@@ -32,7 +31,7 @@ legend('fn [N]', 'ft [N]', 'M [Nm]');
 xlabel('time [s]');
 hold off;
 
-figure(2)
+figure,
 n = size(x1_opt,1);
 ConcatzzStance = []; ConcatxxStance = [];
 ConcatzzFly = []; ConcatxxFly = [];
@@ -47,8 +46,8 @@ for k=1:n
     %     floatx = [0, P0x, P0x];
     floorx = [-0.3 StepLenght+0.3];
     floory = [0 0];
-    if (k>=Tlanding1/tt)&&(k <= Tliftoff1/tt)||(k>=Tlanding2/tt)&&(k <= Tliftoff2/tt) % stance phase
-        if (k == Tlanding1/tt)
+    if (k>=floor(Tlanding1/tt))&&(k <= ceil(Tliftoff1/tt))||(k>=floor(Tlanding2/tt))&&(k <= ceil(Tliftoff2/tt)) % stance phase
+        if (k == floor(Tlanding1/tt))
             Xt = P0x; Zt = P0z;
         end
         Xtd = P0x-Xt;
@@ -68,10 +67,10 @@ for k=1:n
     xlabel('x'); ylabel('z');
     title('L = \theta^2 + u^2');
     drawnow
-    pause(0.005)
+    pause(0.05)
 end
 
-figure(3), 
+figure,
 subplot(3,1,1),plot(tgrid,Fn),legend('normal GRF'), title('Ground Reaction Forces and Torques');
 subplot(3,1,2),plot(tgrid,Ft), legend('tangent GRF');
 subplot(3,1,3),plot(tgrid,M),legend('hip torque M');
