@@ -7,10 +7,11 @@ import casadi.*
 m = 1;
 len = 0.7;
 grav = - 9.81;
+I = m*len^2;
 % Gap lenght [m]
 GapLenght = 0.5;
 % Obstacle height
-obstacle_height = 0.3;
+obstacle_height = 0.2;
 
 StabMarX = 0;
 StabMarZ = 0;
@@ -22,12 +23,12 @@ Tlanding1 = (ceil(sqrt(- z_flight/0.5/grav)*100)/100);
 Tsw = 2*Tlanding1;
 % Horizontal speed of the pendulum
 HorSpeedFinal = StepLenght/Tsw;
-SpringCompr = obstacle_height/2;
+SpringCompr = obstacle_height*0.5;
 K = ceil( 2*(- m*grav*(SpringCompr + z_flight)+0.5*m*HorSpeedFinal^2)/SpringCompr^2);
 omega = sqrt(K/m);
 freq = omega/2/pi;
 Tst = 1/freq*0.5; % stance time is half of the spring period
-tt = 0.005; % integration time (sampling time t = 0.005 works)
+tt = 0.003; % integration time (sampling time t = 0.005 works)
 Tst = ceil(Tst*100)/100; % round the landing instant to the upper centi-second (so that the counter is integer)
 T1 = Tst + Tsw; % period corresponding to 1 step
 Duty = Tst/T1;
@@ -38,8 +39,8 @@ Tliftoff2 = Tliftoff1 + T1;
 % number of control inputs
 ni = 2;
 % Declare model variables
-theta = MX.sym('theta'); % theta1
-thetad = MX.sym('thetad'); % theta1_dot
+theta = MX.sym('theta'); % theta
+thetad = MX.sym('thetad'); % theta_dot
 x = MX.sym('x');  % base x coordinate
 xd = MX.sym('xd'); % base x dot
 z = MX.sym('z'); % base y coordinate
@@ -50,7 +51,7 @@ state = [theta; thetad; x; xd; z; zd];
 nv = size(state,1);
 q = [theta; x; z];
 dq = [thetad; xd; zd];
-ddq = MX.sym('ddq',size(q,1)); % theta1_dot_dot
+ddq = MX.sym('ddq',size(q,1));
 
 u = MX.sym('u',ni);
 % Control inputs
@@ -63,7 +64,6 @@ u1min = 0;
 u2max = inf;
 u2min = -inf;
 % Model equations
-% xdot = [x2;     - fr*x2 + grav/ll*sin(x1) - u];
 v_sq = xd^2 + zd^2;
 E = 0.5*m*len*v_sq + 0.5*m*len^2*thetad^2;
 V = m*grav*z;
@@ -75,7 +75,7 @@ Lag = E - V;
 % eq = jtimes(gradient(Lag,dq),q,dq) - gradient(Lag,q);
 eq = jacobian(gradient(Lag,dq),q)*dq - gradient(Lag,q);
 % xdot = [thetad; eq(1) - M - ft*len*cos(theta) - fn*len*sin(theta); xd; eq(2) - ft/m; zd; eq(3) + fn/m];
-xdot = [thetad;  -grav/len*(theta) - M - fn*len*(theta) - ft*len; xd; eq(2) + ft/m; zd; eq(3) + fn/m];
+xdot = [thetad;  -grav/len*(theta) - M/m/len^2 - fn*len*(theta)/I - ft*len/I; xd; eq(2) + ft/m; zd; eq(3) + fn/m];
 % Objective term
 L = theta^2 + u'*u;
 
@@ -85,22 +85,14 @@ f = Function('f', {state, u}, {xdot, L});
 
 % Control discretization
 N = T/tt; % number of control intervals
-IntStep = 4; % RK4 steps per interval
-DT = T/N/IntStep;
+
+
 X0 = MX.sym('X0', nv);
 U = MX.sym('U',ni);
 X = X0;
 Q = 0;
-% Runge Kutta 4 integrator
-for j=1:IntStep
-    [k1, k1_q] = easycall(f, X, U);
-    [k2, k2_q] = easycall(f, X + DT/2 * k1, U);
-    [k3, k3_q] = easycall(f, X + DT/2 * k2, U);
-    [k4, k4_q] = easycall(f, X + DT * k3, U);
-    X=X+DT/6*(k1 +2*k2 +2*k3 +k4);
-    Q = Q + DT/6*(k1_q + 2*k2_q + 2*k3_q + k4_q);
-end
-F = Function('F', {X0, U}, {X, Q});
+% Runge Kutta Integrator
+[F,X,Q] = RK4(f,X,U,T,N,Q,X0);
 % Number of steps
 StepNum = 1;
 % Prediction horizon
@@ -109,7 +101,7 @@ H = 3;
 XInit = [0, StepLenght, 2*StepLenght, 3*StepLenght];
 % INCREASE in the main control quantities
 HorSpeedFinal =[StepLenght/T1; 0; 0; 0];
-HorSpeedInit = [-StepLenght/T1; StepLenght/T1; 0; 0];
+HorSpeedInit = [0; StepLenght/T1; 0; 0];
 CaptPoint = zeros(1,StepNum);
 Xfinal = [StepLenght, StepLenght, StepLenght, StepLenght];
 % initialize the vectors of the solution
@@ -174,8 +166,8 @@ for ii = 1:StepNum
             lbg = [lbg; 0];
             ubg = [ubg; 0];
             
-        elseif ((k >= Tlanding1/tt)&&(k <= Tliftoff1/tt))||((k >= Tlanding2/tt)&&(k <= Tliftoff2/tt))
-            if (k == Tlanding1/tt)||(k == Tlanding2/tt)
+        elseif ((k >= floor(Tlanding1/tt))&&(k <= ceil(Tliftoff1/tt)))||((k >= floor(Tlanding2/tt))&&(k <= ceil(Tliftoff2/tt)))
+            if (k == floor(Tlanding1/tt))||(k == floor(Tlanding2/tt))
                 %     x,z coordinates of the foot at touch down
                 Xtouchd = Xk(3) - len*sin(Xk(1));
                 Ztouchd = Xk(5) - len*cos(Xk(1));
@@ -190,7 +182,7 @@ for ii = 1:StepNum
             lbg = [lbg; 0];
             ubg = [ubg; 0];
             % impose the contact point to be fixed during stance phase
-            g = {g{:}, Xk(3) - l*sin(Xk(1)) - Xtouchd};
+            g = {g{:}, Xk(3) - l*sin(Xk(1)) - Xtouchd} ;
             lbg = [lbg; 0];
             ubg = [ubg; 0];
             g = {g{:}, Xk(5) - l*cos(Xk(1)) - Ztouchd};
@@ -216,7 +208,7 @@ for ii = 1:StepNum
     
     % Create an NLP solver
     prob = struct('f', J, 'x', vertcat(w{:}), 'g', vertcat(g{:}));
-    options.ipopt = struct('max_iter',100,'acceptable_tol',10e+100);
+    options.ipopt = struct('max_iter',200,'acceptable_tol',10e+1000);
     solver = nlpsol('solver', 'ipopt', prob, options);
     
     % Solve the NLP
@@ -237,5 +229,13 @@ for ii = 1:StepNum
     % Optimized Capture Point
     OptCP(ii) = x3_opt(end) + x4_opt(end)/sqrt(-grav/len);
 end
-% Plot the solution
-Plot(x1_opt,x2_opt,x3_opt,x4_opt, x5_opt, x6_opt, u1_opt, u2_opt,tt,T,StepNum,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint)
+% Plot the optimal solution 
+Fn = [u1_opt].*cos(x1_opt);
+Ft = [u1_opt].*sin(x1_opt);
+M = u2_opt;
+Plot(x1_opt,x2_opt,x3_opt,x4_opt, x5_opt, x6_opt, Fn, Ft, M, tt, T,StepNum,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint);
+
+pause()
+% Simulate the solution and plot
+[Theta, Thetad, Xx, Xxd, Zz, Zzd] = Simulation(Fn,Ft,M,N,x1_opt(1),x2_opt(1),x3_opt(1),x4_opt(1),x5_opt(1),x6_opt(1),T);
+Plot(Theta', Thetad', Xx', Xxd', Zz', Zzd', Fn, Ft, M, tt, T,StepNum,len,StepLenght,Tlanding1,Tlanding2,Tliftoff1,Tliftoff2,OptCP,CaptPoint);
